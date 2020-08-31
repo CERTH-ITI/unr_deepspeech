@@ -52,8 +52,7 @@ def noise_reduction():
 
 def is_silent(sound_data):
     "Returns 'True' if below the 'silent' threshold"
-    print(max(sound_data))
-    return max(sound_data) < THRESHOLD
+    return rms(sound_data) < THRESHOLD_RMS
 
 def normalize(sound_data):
     "Average the volume out"
@@ -73,7 +72,7 @@ def trim(sound_data):
         r = array('h')
 
         for i in sound_data:
-            if not sound_started and abs(i)>THRESHOLD:
+            if not sound_started and abs(i)>THRESHOLD_MAX:
                 sound_started = True
                 r.append(i)
 
@@ -108,7 +107,8 @@ def record(rate, device):
     blank sound to make sure VLC et al can play
     it without getting chopped off.
     """
-
+    time_now = time.time()
+    
     # This sets up a pyaudio port
     p = pyaudio.PyAudio() 
 
@@ -121,6 +121,7 @@ def record(rate, device):
     r = array('h')
 
     while True:
+
         # little endian, signed short
         sound_data = array('h', stream.read(CHUNK_SIZE, exception_on_overflow=False))
 
@@ -130,6 +131,10 @@ def record(rate, device):
         r.extend(sound_data)
         
         silent = is_silent(sound_data)
+
+        if silent and not sound_started:
+            if time.time() - time_now >= 2:
+                break
         
         if silent and sound_started:
             if num_silent==0:
@@ -151,9 +156,13 @@ def record(rate, device):
     
     p.terminate()
 
+    print("Normalizing...")
     r = normalize(r)
+    print("Trimming...")
     r = trim(r)
+    print("Adding Silence...")
     r = add_silence(r, 1.0, rate)
+    print("Finished... Now transcription time...")
 
     return sample_width, r
 
@@ -189,7 +198,7 @@ def record_callback(keyword):
     
     record_audio_flag = rospy.get_param('/unr_deepspeech/record_flag')
 
-    if trigger == "robot" and record_audio_flag==False :
+    if trigger == "robot" and record_audio_flag == False :
         
         rospy.set_param('/unr_deepspeech/record_flag', param_value=True)
         record_audio_flag = rospy.get_param('/unr_deepspeech/record_flag')
@@ -198,6 +207,7 @@ def record_callback(keyword):
 
             # Wav file Recording        ~1~
             print("YOU CAN SPEAK NOW !!! CERTHBOT Ready to record !")
+
             deepspeech_rec_state_pub.publish(True)
             try:
                 record_to_file(WAV_PATH, rate=rate, device=device)
@@ -206,6 +216,7 @@ def record_callback(keyword):
                 sys.exit(1)
             
             deepspeech_rec_state_pub.publish(False)
+
             # Perform Noise Reduction using FFT     ~2~
             noise_reduction()
 
@@ -253,9 +264,10 @@ if __name__ == "__main__":
     deepspeech_package_path = rospack.get_path('unr_deepspeech')
     WAV_PATH = deepspeech_package_path + '/data/used_recording.wav'
     SAVE_PATH = deepspeech_package_path +'/data/'
-    THRESHOLD = get_room_threshold(FORMAT, CHUNK_SIZE, 16000, RECORD_SECONDS)
+    THRESHOLD_RMS, THRESHOLD_MAX = get_room_threshold(FORMAT, CHUNK_SIZE, 16000, RECORD_SECONDS)
 
-    print("THRESHOLD VALUE: " + str(THRESHOLD))
+    print("THRESHOLD_RMS VALUE: " + str(THRESHOLD_RMS))
+    print("THRESHOLD_MAX VALUE: " + str(THRESHOLD_MAX))
 
     rate, device = main()
     

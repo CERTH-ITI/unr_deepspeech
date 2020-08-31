@@ -34,25 +34,28 @@ def get_room_threshold(pyaudio_format, chunk_size, sampling_rate, recording_time
     p = pyaudio.PyAudio()
     stream = p.open(format=pyaudio_format, channels=1, rate=sampling_rate, input=True, frames_per_buffer=chunk_size)
 
-    recording_loudness = []
+    recording_loudness_rms = []
+    recording_loudness_max = []
 
     print("* recording")        
     start_time = time.time()
 
     for i in range(0, int(sampling_rate / chunk_size * recording_time)):
         data = array('h', stream.read(chunk_size, exception_on_overflow=False))
-        recording_loudness.append(rms(data))
-    
+        recording_loudness_rms.append(rms(data))
+        recording_loudness_max.append(max(data))
+
     print("* done recording")
     print("Time recording: "+str(time.time()-start_time))
     
-    room_noise_threshold = mean(recording_loudness) + mean(recording_loudness)/2 # adding a small loudness portion (extra)
-    
+    room_noise_threshold_rms = 10*mean(recording_loudness_rms) # adding a small loudness portion (extra)
+    room_noise_threshold_max = 5*mean(recording_loudness_max)
+
     stream.stop_stream()
     stream.close()
     p.terminate()
 
-    return room_noise_threshold
+    return room_noise_threshold_rms, room_noise_threshold_max
 
 def calibration_callback(keyword):
     capture_audio_flag = rospy.get_param('/unr_deepspeech/record_flag')
@@ -61,11 +64,12 @@ def calibration_callback(keyword):
 
         rospy.set_param('/unr_deepspeech/calibration_flag', param_value=True)
         
-        room_noise_threshold = get_room_threshold(FORMAT, CHUNK_SIZE, RATE, RECORD_SECONDS)
+        room_noise_threshold_rms, room_noise_threshold_max = get_room_threshold(FORMAT, CHUNK_SIZE, RATE, RECORD_SECONDS)
         
-        print("Room Ambient Noise Threshold: "+str(room_noise_threshold))
+        print("Room Ambient Noise Threshold: "+str(room_noise_threshold_rms))
 
-        rospy.set_param('/unr_deepspeech/room_noise_threshold', room_noise_threshold)
+        rospy.set_param('/unr_deepspeech/room_noise_threshold_rms', room_noise_threshold_rms)
+        rospy.set_param('/unr_deepspeech/room_noise_threshold_max', room_noise_threshold_max)
         rospy.set_param('/unr_deepspeech/calibration_flag', param_value=False)
 
 
