@@ -22,10 +22,12 @@ import scipy
 from scipy.io import wavfile
 import numpy as np
 import matplotlib.pyplot as plt
+from calibration_node import rms, get_room_threshold
+
 
 global rate, device
 
-THRESHOLD = 3500
+RECORD_SECONDS = 5
 CHUNK_SIZE = 1000
 FORMAT = pyaudio.paInt16
 KEEP_WAV = True
@@ -35,7 +37,7 @@ def noise_reduction():
     "Function for Noise reduction with FFT"
     # load data
     rate, data = wavfile.read(WAV_PATH)
-    scipy.io.wavfile.write(SAVE_PATH+'_recording_noisy', rate, np.asarray(data, dtype=np.int16))
+    scipy.io.wavfile.write(SAVE_PATH+'recording_noisy.wav', rate, np.asarray(data, dtype=np.int16))
 
     data = np.ndarray.astype(data,float)
 
@@ -45,11 +47,12 @@ def noise_reduction():
     # perform noise reduction
     reduced_noise = nr.reduce_noise(audio_clip=data, noise_clip=noisy_part, verbose=False, n_fft=2048, n_std_thresh=1 )
     reduced_noise = normalize(reduced_noise)
-    scipy.io.wavfile.write(SAVE_PATH+'recording_noise_removed', rate, np.asarray(reduced_noise, dtype=np.int16))
+    scipy.io.wavfile.write(SAVE_PATH+'recording_noise_removed.wav', rate, np.asarray(reduced_noise, dtype=np.int16))
     scipy.io.wavfile.write(WAV_PATH, rate, np.asarray(reduced_noise, dtype=np.int16))
 
 def is_silent(sound_data):
     "Returns 'True' if below the 'silent' threshold"
+    print(max(sound_data))
     return max(sound_data) < THRESHOLD
 
 def normalize(sound_data):
@@ -81,10 +84,10 @@ def trim(sound_data):
     # Trim to the left
     sound_data = _trim(sound_data)
 
-    # Trim to the right
-    sound_data.reverse()
-    sound_data = _trim(sound_data)
-    sound_data.reverse()
+    # # Trim to the right
+    # sound_data.reverse()
+    # sound_data = _trim(sound_data)
+    # sound_data.reverse()
     return sound_data
 
 def add_silence(sound_data, seconds, rate):
@@ -149,8 +152,8 @@ def record(rate, device):
     p.terminate()
 
     r = normalize(r)
-    # r = trim(r)
-    r = add_silence(r, 0.5, rate)
+    r = trim(r)
+    r = add_silence(r, 1.0, rate)
 
     return sample_width, r
 
@@ -250,8 +253,12 @@ if __name__ == "__main__":
     deepspeech_package_path = rospack.get_path('unr_deepspeech')
     WAV_PATH = deepspeech_package_path + '/data/used_recording.wav'
     SAVE_PATH = deepspeech_package_path +'/data/'
-    
+    THRESHOLD = get_room_threshold(FORMAT, CHUNK_SIZE, 16000, RECORD_SECONDS)
+
+    print("THRESHOLD VALUE: " + str(THRESHOLD))
+
     rate, device = main()
+    
     rospy.init_node("unr_deepspeech_client")
     rospy.set_param('/unr_deepspeech/record_flag', param_value=False)
     deepspeech_rec_state_pub = rospy.Publisher("certhbot_recording_state", Bool, queue_size=10)

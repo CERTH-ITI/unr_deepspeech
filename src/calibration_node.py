@@ -29,38 +29,46 @@ def rms(data):
 
     return rms_value
 
+def get_room_threshold(pyaudio_format, chunk_size, sampling_rate, recording_time):
+
+    p = pyaudio.PyAudio()
+    stream = p.open(format=pyaudio_format, channels=1, rate=sampling_rate, input=True, frames_per_buffer=chunk_size)
+
+    recording_loudness = []
+
+    print("* recording")        
+    start_time = time.time()
+
+    for i in range(0, int(sampling_rate / chunk_size * recording_time)):
+        data = array('h', stream.read(chunk_size, exception_on_overflow=False))
+        recording_loudness.append(rms(data))
+    
+    print("* done recording")
+    print("Time recording: "+str(time.time()-start_time))
+    
+    room_noise_threshold = mean(recording_loudness) + mean(recording_loudness)/2 # adding a small loudness portion (extra)
+    
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
+
+    return room_noise_threshold
+
 def calibration_callback(keyword):
     capture_audio_flag = rospy.get_param('/unr_deepspeech/record_flag')
     
     if keyword.data=="calibrate" and capture_audio_flag==False:
 
         rospy.set_param('/unr_deepspeech/calibration_flag', param_value=True)
-
-        p = pyaudio.PyAudio()
-        stream = p.open(format=FORMAT, channels=1, rate=RATE, input=True, frames_per_buffer=CHUNK_SIZE)
-
-        recording_loudness = []
-    
-        print("* recording")        
-        start_time = time.time()
-
-        for i in range(0, int(RATE / CHUNK_SIZE * RECORD_SECONDS)):
-            data = array('h', stream.read(CHUNK_SIZE, exception_on_overflow=False))
-            recording_loudness.append(rms(data))
         
-        print("* done recording")
-        print("Time recording: "+str(time.time()-start_time))
-        
-        room_noise_threshold = mean(recording_loudness) + mean(recording_loudness)/2 # adding a small loudness portion (extra)
+        room_noise_threshold = get_room_threshold(FORMAT, CHUNK_SIZE, RATE, RECORD_SECONDS)
         
         print("Room Ambient Noise Threshold: "+str(room_noise_threshold))
 
         rospy.set_param('/unr_deepspeech/room_noise_threshold', room_noise_threshold)
         rospy.set_param('/unr_deepspeech/calibration_flag', param_value=False)
 
-        stream.stop_stream()
-        stream.close()
-        p.terminate()
+
 
 
 def calibration():
