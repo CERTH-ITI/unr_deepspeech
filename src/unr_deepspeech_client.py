@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 from __future__ import print_function
 
 from sys import byteorder
@@ -7,8 +8,9 @@ from struct import pack
 import os
 import pyaudio
 import wave
-import rospy
+import rospy, rospkg
 from unr_deepspeech.srv import *
+from std_msgs.msg import Bool
 from std_msgs.msg import String
 from rospkg import RosPack
 import audioop
@@ -26,10 +28,7 @@ global rate, device
 THRESHOLD = 3500
 CHUNK_SIZE = 1000
 FORMAT = pyaudio.paInt16
-WAV_PATH = '/home/userofpc/ros_workspaces/hdetection_ws/src/unr_deepspeech/data/used_recording.wav'
-SAVE_PATH = '/home/userofpc/ros_workspaces/hdetection_ws/src/unr_deepspeech/data/'
 KEEP_WAV = True
-CTRR = 0
 
 # SUB FUNCTIONS
 def noise_reduction():
@@ -131,15 +130,14 @@ def record(rate, device):
         
         if silent and sound_started:
             if num_silent==0:
-                print("~~~Countdown started...~~~")
                 num_silent += 1
             else:
                 num_silent += 1
 
         elif not silent and not sound_started:
-            print("Voice passed Threshold!!")
+            print("Voice passed Threshold, countdown started...")
             sound_started = True
-
+            
         if sound_started and num_silent > 50:
             break
 
@@ -185,7 +183,7 @@ def call_deepspeech_transcription_service(filename):
 def record_callback(keyword):
 
     trigger = keyword.data
-    print(trigger)
+    
     record_audio_flag = rospy.get_param('/unr_deepspeech/record_flag')
 
     if trigger == "robot" and record_audio_flag==False :
@@ -196,19 +194,23 @@ def record_callback(keyword):
         while record_audio_flag==True:
 
             # Wav file Recording        ~1~
-            print("Ready to record")
+            print("YOU CAN SPEAK NOW !!! CERTHBOT Ready to record !")
+            deepspeech_rec_state_pub.publish(True)
             try:
                 record_to_file(WAV_PATH, rate=rate, device=device)
             except:
                 print("Error transcribing audio. Check your audio device index.")
                 sys.exit(1)
-
+            
+            deepspeech_rec_state_pub.publish(False)
             # Perform Noise Reduction using FFT     ~2~
             noise_reduction()
 
             # Use the new wav file to Transcribe speech     ~3~
             print("Transcribing speech...")
+            deepspeech_transcription_state_pub.publish(True)
             deep_speech_output = call_deepspeech_transcription_service(WAV_PATH)
+            deepspeech_transcription_state_pub.publish(False)
             print("\nText: " + deep_speech_output)
         
             # Clean the latest wav file     ~4~
@@ -244,9 +246,16 @@ def main():
     return rate,device
 
 if __name__ == "__main__":
-
+    rospack = rospkg.RosPack()
+    deepspeech_package_path = rospack.get_path('unr_deepspeech')
+    WAV_PATH = deepspeech_package_path + '/data/used_recording.wav'
+    SAVE_PATH = deepspeech_package_path +'/data/'
+    
     rate, device = main()
     rospy.init_node("unr_deepspeech_client")
     rospy.set_param('/unr_deepspeech/record_flag', param_value=False)
+    deepspeech_rec_state_pub = rospy.Publisher("certhbot_recording_state", Bool, queue_size=10)
+    deepspeech_transcription_state_pub = rospy.Publisher("certhbot_transcription_state", Bool, queue_size=10)
     deepspeech_client_sub = rospy.Subscriber("kws_data", String, record_callback)
+
     rospy.spin()
