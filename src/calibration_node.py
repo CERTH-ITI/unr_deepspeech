@@ -37,7 +37,7 @@ def get_room_threshold(pyaudio_format, chunk_size, sampling_rate, recording_time
     recording_loudness_rms = []
     recording_loudness_max = []
 
-    print("* recording")        
+    print("* Calibrating")        
     start_time = time.time()
 
     for i in range(0, int(sampling_rate / chunk_size * recording_time)):
@@ -45,9 +45,8 @@ def get_room_threshold(pyaudio_format, chunk_size, sampling_rate, recording_time
         recording_loudness_rms.append(rms(data))
         recording_loudness_max.append(max(data))
 
-    print("* done recording")
-    print("Time recording: "+str(time.time()-start_time))
-    
+    print("* done Calibrating")
+
     room_noise_threshold_rms = 10*mean(recording_loudness_rms) # adding a small loudness portion (extra)
     room_noise_threshold_max = 5*mean(recording_loudness_max)
 
@@ -58,9 +57,9 @@ def get_room_threshold(pyaudio_format, chunk_size, sampling_rate, recording_time
     return room_noise_threshold_rms, room_noise_threshold_max
 
 def calibration_callback(keyword):
-    capture_audio_flag = rospy.get_param('/unr_deepspeech/record_flag')
+    record_flag = rospy.get_param('/unr_deepspeech/record_flag')
     
-    if keyword.data=="calibrate" and capture_audio_flag==False:
+    if keyword.data=="calibrate" and record_flag ==False:
 
         rospy.set_param('/unr_deepspeech/calibration_flag', param_value=True)
         
@@ -71,8 +70,6 @@ def calibration_callback(keyword):
         rospy.set_param('/unr_deepspeech/room_noise_threshold_rms', room_noise_threshold_rms)
         rospy.set_param('/unr_deepspeech/room_noise_threshold_max', room_noise_threshold_max)
         rospy.set_param('/unr_deepspeech/calibration_flag', param_value=False)
-
-
 
 
 def calibration():

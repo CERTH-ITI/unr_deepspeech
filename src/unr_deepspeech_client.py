@@ -27,7 +27,7 @@ from calibration_node import rms, get_room_threshold
 
 global rate, device
 
-RECORD_SECONDS = 5
+CALIBRATE_SECONDS = 1
 CHUNK_SIZE = 1000
 FORMAT = pyaudio.paInt16
 KEEP_WAV = True
@@ -108,16 +108,14 @@ def record(rate, device):
     blank sound to make sure VLC et al can play
     it without getting chopped off.
     """
-    time_now = time.time()
-    voice_passed = False
 
-    # This sets up a pyaudio port
     p = pyaudio.PyAudio() 
 
     # Following comes a setup of a Stream to "play" or "record" audio. 
     stream = p.open(format=FORMAT, channels=1, rate=rate, input=True, output=True, frames_per_buffer=CHUNK_SIZE, input_device_index=device)
-
-    # num_silent = 0
+   
+    time_now = time.time()
+    voice_passed = False
     sound_started = False
 
     r = array('h')
@@ -131,9 +129,10 @@ def record(rate, device):
         
         silent = is_silent(sound_data)
 
-        if silent and not sound_started:
+        if (silent and not sound_started) or (silent and sound_started):
             if time.time() - time_now >= WAITING_TIME:
-                print("Time remained silent (seconds): "+str(WAITING_TIME))
+                print("Time remained silent (seconds): "+str(WAITING_TIME)+'\n')
+                deepspeech_rec_state_pub.publish(False)
                 break      
 
         elif not silent and not sound_started:
@@ -142,10 +141,11 @@ def record(rate, device):
             voice_passed = True
             time_now = time.time()
         
-        elif silent and sound_started:
-            if time.time() - time_now >= WAITING_TIME:
-                print("Time remained silent (seconds): "+str(WAITING_TIME))
-                break 
+        # elif silent and sound_started:
+        #     if time.time() - time_now >= WAITING_TIME:
+        #         print("Time remained silent (seconds): "+str(WAITING_TIME))
+        #         deepspeech_rec_state_pub.publish(False)
+        #         break 
 
         elif not silent and sound_started:
             time_now = time.time()
@@ -187,11 +187,11 @@ def record_to_file(path, rate, device):
         wf.setframerate(16000)
         wf.writeframes(data_16GHz)
         wf.close()
-        cond = True
+        audio_recorded = True
     else:
-        cond = False
+        audio_recorded = False
 
-    return cond
+    return audio_recorded
 
 
 def call_deepspeech_transcription_service(filename):
@@ -210,19 +210,21 @@ def record_callback(keyword):
     record_audio_flag = rospy.get_param('/unr_deepspeech/record_flag')
 
     if trigger == "robot" and record_audio_flag == False :
+        THRESHOLD_RMS, THRESHOLD_MAX = get_room_threshold(FORMAT, CHUNK_SIZE, 16000, CALIBRATE_SECONDS)
+
         rospy.set_param('/unr_deepspeech/record_flag', param_value=True)
         record_audio_flag = rospy.get_param('/unr_deepspeech/record_flag')
 
         while record_audio_flag==True:
 
-            print("YOU CAN SPEAK NOW !!! CERTHBOT Ready to record !")
+            print("~~~~~~~~~~ YOU CAN SPEAK NOW !!! CERTHBOT Ready to record ~~~~~~~~~~~~")
 
             deepspeech_rec_state_pub.publish(True)
 
             # Wav file Recording        ~1~
             try:
-                condition = record_to_file(WAV_PATH, rate=rate, device=device)
-                if not condition:
+                audio_recorded = record_to_file(WAV_PATH, rate=rate, device=device)
+                if not audio_recorded:
                     rospy.set_param('/unr_deepspeech/record_flag', param_value=False)
                     record_audio_flag = False
                     break
@@ -230,24 +232,22 @@ def record_callback(keyword):
                 print("Error transcribing audio. Check your audio device index.")
                 sys.exit(1)
             
-            deepspeech_rec_state_pub.publish(False)
 
-            # Perform Noise Reduction using FFT     ~2~
+            # Perform Noise Reduction using FFT     (optional)
             # noise_reduction()
 
-            # Use the new wav file to Transcribe speech     ~3~
+            # Use the new wav file to Transcribe speech     ~2~
             print("Transcribing speech...")
             deepspeech_transcription_state_pub.publish(True)
             deep_speech_output = call_deepspeech_transcription_service(WAV_PATH)
             deepspeech_transcription_state_pub.publish(False)
+            stt_output.publish(deep_speech_output)
             print("\nText: " + deep_speech_output)
         
-            # Clean the latest wav file     ~4~
+            # Clean the latest wav file     ~3~
             keep_wav = rospy.get_param("/unr_deepspeech/keep_wav", KEEP_WAV)
             if not keep_wav:
                 os.remove(WAV_PATH)
-
-            # calibrate_flag = rospy.get_param('/calibration_flag')
 
 
 def main():
@@ -279,7 +279,7 @@ if __name__ == "__main__":
     deepspeech_package_path = rospack.get_path('unr_deepspeech')
     WAV_PATH = deepspeech_package_path + '/data/used_recording.wav'
     SAVE_PATH = deepspeech_package_path +'/data/'
-    THRESHOLD_RMS, THRESHOLD_MAX = get_room_threshold(FORMAT, CHUNK_SIZE, 16000, RECORD_SECONDS)
+    THRESHOLD_RMS, THRESHOLD_MAX = get_room_threshold(FORMAT, CHUNK_SIZE, 16000, CALIBRATE_SECONDS)
 
     print("THRESHOLD_RMS VALUE: " + str(THRESHOLD_RMS))
     print("THRESHOLD_MAX VALUE: " + str(THRESHOLD_MAX))
@@ -288,6 +288,8 @@ if __name__ == "__main__":
     
     rospy.init_node("unr_deepspeech_client")
     rospy.set_param('/unr_deepspeech/record_flag', param_value=False)
+    
+    stt_output = rospy.Publisher("deepspeech_output", String, queue_size=10)
     deepspeech_rec_state_pub = rospy.Publisher("certhbot_recording_state", Bool, queue_size=10)
     deepspeech_transcription_state_pub = rospy.Publisher("certhbot_transcription_state", Bool, queue_size=10)
     deepspeech_client_sub = rospy.Subscriber("kws_data", String, record_callback)

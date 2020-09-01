@@ -35,6 +35,7 @@ def listener_server():
     model_path = "{}/model".format(package_path)
     scorer_path = "{}/model".format(package_path)
 
+
     if rospy.has_param("/unr_deepspeech/model"):
         model_path = rospy.get_param("/unr_deepspeech/model")
 
@@ -46,6 +47,7 @@ def listener_server():
 
     rospy.Service('listen', Listen, handle_listener)
     print ("Ready to interpret speech audio.")
+
     rospy.spin()
 
 if __name__ == "__main__":
