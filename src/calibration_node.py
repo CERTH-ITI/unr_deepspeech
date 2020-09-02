@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-import speech_recognition as sr
+#!/usr/bin/env python
+
 from std_msgs.msg import String
 import numpy as np
 import pyaudio
@@ -41,7 +41,7 @@ def get_room_threshold(pyaudio_format, chunk_size, sampling_rate, recording_time
     start_time = time.time()
 
     for i in range(0, int(sampling_rate / chunk_size * recording_time)):
-        data = array('h', stream.read(chunk_size, exception_on_overflow=False))
+        data = array('h', stream.read(chunk_size))
         recording_loudness_rms.append(rms(data))
         recording_loudness_max.append(max(data))
 

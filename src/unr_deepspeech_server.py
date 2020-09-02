@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 from unr_deepspeech.srv import *
 import rospy

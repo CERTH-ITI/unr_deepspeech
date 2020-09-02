@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 from __future__ import print_function
 
@@ -15,9 +15,9 @@ from std_msgs.msg import String
 from rospkg import RosPack
 import audioop
 import time
-import noisereduce as nr
-import librosa
-import numba
+#import noisereduce as nr
+#import librosa
+#import numba
 import scipy
 from scipy.io import wavfile
 import numpy as np
@@ -121,7 +121,7 @@ def record(rate, device):
     r = array('h')
 
     while True:
-        sound_data = array('h', stream.read(CHUNK_SIZE, exception_on_overflow=False))
+        sound_data = array('h', stream.read(CHUNK_SIZE))
         if byteorder == 'big':
             sound_data.byteswap()
             
