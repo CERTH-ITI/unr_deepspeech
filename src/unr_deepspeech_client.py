@@ -140,12 +140,7 @@ def record(rate, device):
             sound_started = True
             voice_passed = True
             time_now = time.time()
-        
-        # elif silent and sound_started:
-        #     if time.time() - time_now >= WAITING_TIME:
-        #         print("Time remained silent (seconds): "+str(WAITING_TIME))
-        #         deepspeech_rec_state_pub.publish(False)
-        #         break 
+         
 
         elif not silent and sound_started:
             time_now = time.time()
@@ -216,7 +211,6 @@ def record_callback(keyword):
         record_audio_flag = rospy.get_param('/unr_deepspeech/record_flag')
 
         while record_audio_flag==True:
-
             print("~~~~~~~~~~ YOU CAN SPEAK NOW !!! CERTHBOT Ready to record ~~~~~~~~~~~~")
 
             deepspeech_rec_state_pub.publish(True)
@@ -248,7 +242,7 @@ def record_callback(keyword):
             keep_wav = rospy.get_param("/unr_deepspeech/keep_wav", KEEP_WAV)
             if not keep_wav:
                 os.remove(WAV_PATH)
-
+            
 
 def main():
     p = pyaudio.PyAudio()
@@ -289,7 +283,7 @@ if __name__ == "__main__":
     rospy.init_node("unr_deepspeech_client")
     rospy.set_param('/unr_deepspeech/record_flag', param_value=False)
     
-    stt_output = rospy.Publisher("deepspeech_output", String, queue_size=10)
+    stt_output = rospy.Publisher("deepspeech_output", String, queue_size=1)
     deepspeech_rec_state_pub = rospy.Publisher("certhbot_recording_state", Bool, queue_size=10)
     deepspeech_transcription_state_pub = rospy.Publisher("certhbot_transcription_state", Bool, queue_size=10)
     deepspeech_client_sub = rospy.Subscriber("kws_data", String, record_callback)

@@ -33,15 +33,13 @@ def listener_server():
     rp = RosPack()
     package_path = rp.get_path("unr_deepspeech")
     model_path = "{}/model".format(package_path)
-    scorer_path = "{}/model".format(package_path)
-
 
     if rospy.has_param("/unr_deepspeech/model"):
         model_path = rospy.get_param("/unr_deepspeech/model")
 
     print ("Loading model from : " + model_path)
 
-    listener = DeepspeechNode(model_path=model_path, scorer_path=scorer_path)
+    listener = DeepspeechNode(model_path=model_path)
 
     rospy.init_node('listener_server')
 
