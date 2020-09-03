@@ -23,7 +23,7 @@ from scipy.io import wavfile
 import numpy as np
 import matplotlib.pyplot as plt
 from calibration_node import rms, get_room_threshold
-
+import glob
 
 global rate, device
 
@@ -217,6 +217,7 @@ def record_callback(keyword):
 
             # Wav file Recording        ~1~
             try:
+                WAV_PATH = deepspeech_package_path + '/data/'+str(time.time())+'_used_recording.wav'
                 audio_recorded = record_to_file(WAV_PATH, rate=rate, device=device)
                 if not audio_recorded:
                     rospy.set_param('/unr_deepspeech/record_flag', param_value=False)
@@ -263,8 +264,8 @@ def main():
         device = devices_list.index(desired_device_name)
         print("Using device: " +str(device)+" == "+desired_device_name)
     else:
-        print("Astra is default input device: " +str(device)+" == "+desired_device_name)
         device = devices_list.index('default')
+        print("Astra is default input device: " +str(device)+" == "+desired_device_name)
 
     if device == -1:
         print("Unable to find default device. Here are the available audio devices: ")
@@ -278,8 +279,14 @@ def main():
 if __name__ == "__main__":
     rospack = rospkg.RosPack()
     deepspeech_package_path = rospack.get_path('unr_deepspeech')
-    WAV_PATH = deepspeech_package_path + '/data/used_recording.wav'
-    SAVE_PATH = deepspeech_package_path +'/data/'
+
+    # Deleting all previously saved wav files
+    wav_files = glob.glob(deepspeech_package_path+'/data'+'/*.wav')
+    for file in wav_files:
+        os.unlink(file)
+
+    # WAV_PATH = deepspeech_package_path + '/data/'+str(time.time())+'_used_recording.wav'
+    # SAVE_PATH = deepspeech_package_path +'/data/'
     THRESHOLD_RMS, THRESHOLD_MAX = get_room_threshold(FORMAT, CHUNK_SIZE, 16000, CALIBRATE_SECONDS)
 
     print("THRESHOLD_RMS VALUE: " + str(THRESHOLD_RMS))
