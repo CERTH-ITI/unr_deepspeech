@@ -113,7 +113,7 @@ def record(rate, device):
 
     # Following comes a setup of a Stream to "play" or "record" audio. 
     stream = p.open(format=FORMAT, channels=1, rate=rate, input=True, output=True, frames_per_buffer=CHUNK_SIZE, input_device_index=device)
-   
+    
     time_now = time.time()
     voice_passed = False
     sound_started = False
@@ -242,23 +242,30 @@ def record_callback(keyword):
             keep_wav = rospy.get_param("/unr_deepspeech/keep_wav", KEEP_WAV)
             if not keep_wav:
                 os.remove(WAV_PATH)
-            
-
+               
 def main():
     p = pyaudio.PyAudio()
 
     info = p.get_host_api_info_by_index(0)
     numDevices = info.get('deviceCount')
 
+    print("Number of devices: ", numDevices)
+
     device = -1
     rate = 48000
-      
+    devices_list = []
+    desired_device_name = 'ASTRA: USB Audio (hw:1,0)'
+
     for i in range(0, numDevices):
-            if (p.get_device_info_by_host_api_device_index(0, i).get('maxInputChannels')) > 0:
-                if p.get_device_info_by_host_api_device_index(0, i).get('name') == 'default':
-                    device = i
-                    print("Using device {}".format(i))
-                    break
+        devices_list.append(p.get_device_info_by_host_api_device_index(0, i).get('name'))
+
+    if desired_device_name in devices_list:
+        device = devices_list.index(desired_device_name)
+        print("Using device: " +str(device)+" == "+desired_device_name)
+    else:
+        print("Astra is default input device: " +str(device)+" == "+desired_device_name)
+        device = devices_list.index('default')
+
     if device == -1:
         print("Unable to find default device. Here are the available audio devices: ")
         for i in range(0, numDevices):
